@@ -1,0 +1,24 @@
+{
+  "name": "instagram-mining",
+  "version": "1.0.0",
+  "description": "Pulls instagram data for CSBSJU data analysis course",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AndrewZurn/csbsju-instagram-mining.git"
+  },
+  "author": "Andrew Zurn, Shannon Lane",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/AndrewZurn/csbsju-instagram-mining/issues"
+  },
+  "homepage": "https://github.com/AndrewZurn/csbsju-instagram-mining#readme",
+  "dependencies": {
+    "request": "^2.88.0",
+    "request-json": "^0.6.4",
+    "request-promise": "^4.2.5"
+  }
+}
