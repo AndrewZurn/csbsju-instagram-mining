@@ -98,35 +98,26 @@ async function getAccountInfo(accountName) {
   var response = await _makeRequest(options);
   var userObject = response.user;
 
-  // move some keys around to flatten out the information
-  userObject.followed_by_count = userObject.edge_followed_by.count;
-  userObject.follows_count = userObject.edge_follow.count;
-  userObject.follows_follower_count = userObject.edge_mutual_followed_by.count;
-  userObject.video_count = userObject.edge_felix_video_timeline.count;
-  userObject.timeline_count = userObject.edge_owner_to_timeline_media.count;
-
-  delete userObject['blocked_by_viewer'];
-  delete userObject['followed_by_viewer'];
-  delete userObject['edge_followed_by'];
-  delete userObject['external_url_linkshimmed'];
-  delete userObject['country_block'];
-  delete userObject['restricted_by_viewer'];
-  delete userObject['edge_follow'];
-  delete userObject['follows_viewer'];
-  delete userObject['has_blocked_viewer'];
-  delete userObject['has_requested_viewer'];
-  delete userObject['highlight_reel_count'];
-  delete userObject['is_private'];
-  delete userObject['edge_mutual_followed_by'];
-  delete userObject['profile_pic_url_hd'];
-  delete userObject['requested_by_viewer'];
-  delete userObject['edge_felix_video_timeline'];
-  delete userObject['edge_owner_to_timeline_media'];
-  delete userObject['edge_saved_media'];
-  delete userObject['edge_media_collections'];
-
   console.log(`Successfully received information for account: ${accountName}`)
-  return userObject;
+  // move some keys around to flatten out the information
+   
+  return{
+    id: userObject.id,
+    username: userObject.username,
+    biography: userObject.biography.replace(/[\n\r,]/g, ''),
+    external_url: userObject.external_url,
+    full_name: userObject.full_name,
+    has_channel: userObject.has_channel,
+    highlight_reel_count: userObject.highlight_reel_count,
+    is_business_account: userObject.is_business_account,
+    business_category_name: userObject.business_category_name,
+    followed_by_count: userObject.edge_followed_by.count,
+    follows_count: userObject.edge_follow.count,
+    follows_follower_count: userObject.edge_mutual_followed_by.count,
+    video_count: userObject.edge_felix_video_timeline.count,
+    timeline_count: userObject.edge_owner_to_timeline_media.count,
+  };
+
 }
 
 async function getPostsForAccount(accountName, id) {
