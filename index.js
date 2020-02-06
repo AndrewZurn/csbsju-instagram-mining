@@ -2,90 +2,82 @@ var request = require("request-promise");
 const { createWriteStream } = require('fs');
 const { Transform } = require("json2csv");
 const { Readable } = require('stream');
+var sleep = require('sleep');
 
 const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'niketraining';
 const INSTAGRAM_QUERY_POST_HASH = 'e769aa130647d2354c40ea6a439bfc08'; // this may change periodically
 const INSTAGRAM_QUERY_COMMENT_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
 
 const transformOpts = { objectMode: true };
+const accountOpts = { 
+  fields: [
+    'id',
+    'biography',
+    'external_url',
+    'edge_followed_by',
+    'full_name',
+    'has_channel',
+    'is_business_account',
+    'is_joined_recently',
+    'business_category_name',
+    'is_verified',
+    'profile_pic_url',
+    'username',
+    'connected_fb_page',
+    'follows_count',
+    'follows_follower_count',
+    'video_count',
+    'timeline_count'
+  ] 
+};
+
+const postsOpts = { 
+  fields: [
+    'id',
+    'shortcode',
+    'video_view_count',
+    'is_video',
+    'video_duration',
+    'type',
+    'image_height',
+    'image_width',
+    'caption',
+    'comment_count',
+    'comments',
+    'title',
+    'likes'
+  ] 
+};
+
+const commentsOpts = { 
+  fields: [
+    'id',
+    'shortcode',
+    'text',
+    'created_at',
+    'username',
+    'likes',
+    'comment_count'
+  ] 
+};
+
+const accountsInput = new Readable({ objectMode: true });
+accountsInput._read = () => {};
+const accountsOutput = createWriteStream('./accounts.csv', { encoding: 'utf8' });
+const accountsProcessor = accountsInput.pipe(new Transform(accountOpts, transformOpts)).pipe(accountsOutput);
+
+const postsInput = new Readable({ objectMode: true });
+postsInput._read = () => {};
+const postsOutput = createWriteStream('./posts.csv', { encoding: 'utf8' });
+const postsProcessor = postsInput.pipe(new Transform(postsOpts, transformOpts)).pipe(postsOutput);
+
+const commentsInput = new Readable({ objectMode: true });
+commentsInput._read = () => {};
+const commentsOutput = createWriteStream('./comments.csv', { encoding: 'utf8' });
+const commentsProcessor = commentsInput.pipe(new Transform(commentsOpts, transformOpts)).pipe(commentsOutput);
 
 async function main() {
   var accountInfo = await getAccountInfo(INSTAGRAM_ACCOUNT_NAME_TO_MINE);
-  const accountOpts = { 
-    fields: [
-      'id',
-      'biography',
-      'external_url',
-      'edge_followed_by',
-      'full_name',
-      'has_channel',
-      'is_business_account',
-      'is_joined_recently',
-      'business_category_name',
-      'is_verified',
-      'profile_pic_url',
-      'username',
-      'connected_fb_page',
-      'follows_count',
-      'follows_follower_count',
-      'video_count',
-      'timeline_count'
-    ] 
-  };
-
-  const accountsInput = new Readable({ objectMode: true });
-  accountsInput._read = () => {};
-  accountsInput.push(accountInfo);
-
-  const accountsOutput = createWriteStream('./accounts.csv', { encoding: 'utf8' });
-  const accountsProcessor = accountsInput.pipe(new Transform(accountOpts, transformOpts)).pipe(accountsOutput);
-
-  // // write the posts - not the best place, should do it as they are gotten from instaram, but will do for now
-  const postsOpts = { 
-    fields: [
-      'id',
-      'shortcode',
-      'video_view_count',
-      'is_video',
-      'video_duration',
-      'type',
-      'image_height',
-      'image_width',
-      'caption',
-      'comment_count',
-      'comments',
-      'title',
-      'likes'
-    ] 
-  };
-
-  const postsInput = new Readable({ objectMode: true });
-  postsInput._read = () => {};
-  posts.forEach(post => postsInput.push(post));
-
-  const postsOutput = createWriteStream('./posts.csv', { encoding: 'utf8' });
-  const postsProcessor = postsInput.pipe(new Transform(postsOpts, transformOpts)).pipe(postsOutput);
-
-  // // write the comments - not the best place, should do it as they are gotten from instaram, but will do for now
-  // const commentsOpts = { 
-  //   fields: [
-  //     'id',
-  //     'shortcode',
-  //     'text',
-  //     'created_at',
-  //     'username',
-  //     'likes',
-  //     'comment_count'
-  //   ] 
-  // };
-
-  // const commentsInput = new Readable({ objectMode: true });
-  // commentsInput._read = () => {};
-  // posts.forEach(post => post.comments.forEach(comment => commentsInput.push(comment)));
-
-  // const commentsOutput = createWriteStream('./comments.csv', { encoding: 'utf8' });
-  // const commentsProcessor = postsInput.pipe(new Transform(commentsOpts, transformOpts)).pipe(postsOutput);
-
   await getPostsForAccount(INSTAGRAM_ACCOUNT_NAME_TO_MINE, accountInfo.id);
 }
 
@@ -93,11 +85,8 @@ async function getAccountInfo(accountName) {
   var options = _getRequestOptions(accountName);
   var response = await _makeRequest(options);
   var userObject = response.user;
-
-  console.log(`Successfully received information for account: ${accountName}`)
-  // move some keys around to flatten out the information
-   
-  return{
+  
+  var accountInfo = {
     id: userObject.id,
     username: userObject.username,
     biography: userObject.biography.replace(/[\n\r,]/g, ''),
@@ -113,7 +102,9 @@ async function getAccountInfo(accountName) {
     video_count: userObject.edge_felix_video_timeline.count,
     timeline_count: userObject.edge_owner_to_timeline_media.count,
   };
+  accountsInput.push(accountInfo);
 
+  return accountInfo;
 }
 
 async function getPostsForAccount(accountName, id) {
@@ -121,11 +112,8 @@ async function getPostsForAccount(accountName, id) {
   var response = await _makeRequest(options);
 
   // start extracting information for the user's posts
-
   var localPosts = response.user.edge_owner_to_timeline_media;
   var pageInfo = localPosts.page_info;
-
-  var posts = [];
 
   while (pageInfo.has_next_page) {
     try {
@@ -134,7 +122,7 @@ async function getPostsForAccount(accountName, id) {
       for (i = 0; i < countInCurrentPage; i++) {
         var postShortCode = localPosts.edges[i].node.shortcode;
         var post = await getIndividualPost(postShortCode);
-        posts.push(post);
+        postsInput.push(post);
       }
 
       var pageVariable = JSON.stringify({ "id": `${id}`, "first": 12, "after": `${pageInfo.end_cursor}` });
@@ -142,21 +130,18 @@ async function getPostsForAccount(accountName, id) {
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
 
-      pageInfo = response.user.edge_owner_to_timeline_media.page_info;
+      pageInfo.has_next_page = response.user.edge_owner_to_timeline_media.page_info;
       localPosts = response.user.edge_owner_to_timeline_media;
     } catch (error) {
       console.error("Encountered error while processing post data.", error);
     }
   }
-
-  return posts;
 }
 
 async function getIndividualPost(shortCode) {
   var options = _getRequestOptions(null, shortCode);
   var response = await _makeRequest(options);
   var postMedia = response.shortcode_media;
-
   return {
     id: postMedia.id,
     shortcode: postMedia.shortcode,
@@ -178,14 +163,11 @@ async function getIndividualPost(shortCode) {
 // short code
 async function getComments(commentCollection, shortCode) {
   var pageInfo = commentCollection.page_info;
-
   var localCommentCollection = commentCollection;
-
-  var comments = [];
   while (pageInfo.has_next_page) {
     try {
       // go through all the comments
-      comments = comments.concat(parseComments(localCommentCollection.edges, shortCode));
+      parseComments(localCommentCollection.edges, shortCode);
 
       // on next page, use below
       var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 12, "after": `${pageInfo.end_cursor}` });
@@ -200,15 +182,12 @@ async function getComments(commentCollection, shortCode) {
       console.error("Encountered error while processing comment data.", error);
     }
   }
-
-  return comments;
 }
 
 function parseComments(commentNodes, shortCode) {
-  var comments = [];
   for (i = 0; i < commentNodes.length; i++) {
     var comment = commentNodes[i].node;
-    comments.push({
+    commentsInput.push({
       id: comment.id,
       shortcode: shortCode,
       text: comment.text ? comment.text.replace(/[\n\r,]/g, '') : '',
@@ -218,7 +197,6 @@ function parseComments(commentNodes, shortCode) {
       comment_count: comment.edge_threaded_comments.count
     });
   }
-  return comments;
 }
 
 // Make request to url to get account information, 
@@ -226,8 +204,16 @@ function parseComments(commentNodes, shortCode) {
 // To see the full response, see: https://www.instagram.com/$accountName/?__a=1
 async function _makeRequest(options) {
   console.log(`Getting information from url: ${options.url}`);
-  var response = await request(options); // make a call to get the instagram info
-  return response.body['graphql'] || response.body['data'];
+
+  try {
+    var response = await request(options); // make a call to get the instagram info
+    return response.body['graphql'] || response.body['data'];
+  } catch (error) {
+    console.error(error);
+    console.warn("Was rate limited, waiting a minute to try again.")
+    sleep.sleep(60)
+    return await _makeRequest(options);
+  }
 }
 
 function _getRequestOptions(accountName, shortCode, pageCursor, urlOverride) {
