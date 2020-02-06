@@ -1,14 +1,16 @@
 var request = require("request-promise");
 
 const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'niketraining';
-const INSTAGRAM_QUERY_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
+const INSTAGRAM_QUERY_HASH = 'e769aa130647d2354c40ea6a439bfc08'; // this may change periodically
+
+// const INSTAGRAM_QUERY_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
 
 async function main() {
   var accountInfo = await getAccountInfo(INSTAGRAM_ACCOUNT_NAME_TO_MINE);
   console.log(accountInfo); // TODO: Write this information to a csv file.
 
-  var response = await getPostsForAccount(INSTAGRAM_ACCOUNT_NAME_TO_MINE);
-  console.log(response);
+  var postInfo = await getPostsForAccount(INSTAGRAM_ACCOUNT_NAME_TO_MINE, accountInfo.id);
+  console.log(postInfo);
 }
 
 async function getAccountInfo(accountName) {
@@ -45,34 +47,40 @@ async function getAccountInfo(accountName) {
   return userObject;
 }
 
-async function getPostsForAccount(accountName) {
+async function getPostsForAccount(accountName, id) {
   var options = _getRequestOptions(accountName);
   var response = await _makeRequest(options);
 
   // start extracting information for the user's posts
-  var posts = response.user.edge_owner_to_timeline_media;
-  var totalPosts = posts.count;
   
-  var pageInfo = posts.page_info;
+  var localPosts = response.user.edge_owner_to_timeline_media;
+  var pageInfo = localPosts.page_info;
+
+  var posts = [];
+
   while (pageInfo.has_next_page) {
     try {
       // get the current count of posts in this page and iterate over each
-      var countInCurrentPage = posts.edges.length;
+      var countInCurrentPage = localPosts.edges.length;
       for (i = 0; i < countInCurrentPage; i++) {
-        var postShortCode = posts.edges[i].node.shortcode;
-        var post = await getIndividualPost(postShortCode)
-        console.log(post);
+        var postShortCode = localPosts.edges[i].node.shortcode;
+        var post = await getIndividualPost(postShortCode);
+        posts.push(post);
       }
 
-      // TODO: do the pagination correctly
-      // use the end cursor to fetch the next set of results.
-      // pageInfo = posts.page_info;
-      // 
-      return { totalPosts, pageInfo };
+      var pageVariable = JSON.stringify({"id":`${id}`,"first":12,"after":`${pageInfo.end_cursor}`});
+      var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_HASH}&variables=${encodeURIComponent(pageVariable)}`;
+      var options = _getRequestOptions(null, null, null, urlOverride);
+      var response = await _makeRequest(options);
+
+      pageInfo = response.user.edge_owner_to_timeline_media.page_info;
+      localPosts = response.user.edge_owner_to_timeline_media;
+ 
     } catch (error) {
-      console.error("Encountered error while processing post data.", error)
+      console.error("Encountered error while processing post data.", error);
     }
-  }
+  } 
+  return posts;
 }
 
 async function getIndividualPost(shortCode) {
@@ -90,9 +98,9 @@ async function getIndividualPost(shortCode) {
 
   // parse edge_media_to_parent_comment actual nodes
   postMedia.comment_count = postMedia.edge_media_to_parent_comment.count;
-  // var comments = getComments(postMedia.edge_media_to_parent_comment);
+  postMedia.comments = await getComments(postMedia.edge_media_to_parent_comment, shortCode);
 
-  postMedia.title = postMedia.title.replace(/[\n\r,]/g,'');
+  postMedia.title = postMedia.title ? postMedia.title.replace(/[\n\r,]/g,'') : '';
   postMedia.likes = postMedia.edge_media_preview_like.count;
   
   delete postMedia.__typename;
@@ -124,7 +132,6 @@ async function getIndividualPost(shortCode) {
 
 // short code
 async function getComments(commentCollection, shortCode) {
-  var count = commentCollection.count;
   var pageInfo = commentCollection.page_info;
 
   var localCommentCollection = commentCollection;
@@ -140,8 +147,8 @@ async function getComments(commentCollection, shortCode) {
     var options = _getRequestOptions(null, null, null, urlOverride);
     var response = await _makeRequest(options);
 
-    pageInfo = response.data.shortcode_media.edge_media_to_parent_comment.page_info;
-    localCommentCollection = response.data.shortcode_media.edge_media_to_parent_comment;
+    pageInfo = response.shortcode_media.edge_media_to_parent_comment.page_info;
+    localCommentCollection = response.shortcode_media.edge_media_to_parent_comment;
   }
 
   return comments;
@@ -157,15 +164,18 @@ function parseComments(commentNodes) {
 // then get the body/json from the response and massage it to a more readable state.
 // To see the full response, see: https://www.instagram.com/$accountName/?__a=1
 async function _makeRequest(options) {
-  console.log(`Getting information from url: ${options.url}`)
+  console.log(`Getting information from url: ${options.url}`);
   var response = await request(options); // make a call to get the instagram info
-  return response.body['graphql'];
+  return response.body['graphql'] || response.body['data'];
 }
 
 function _getRequestOptions(accountName, shortCode, pageCursor, urlOverride) {
-  var queryString = { __a: '1' };
-  if (pageCursor != null) {
-    queryString.max_id = pageCursor;
+  var queryString = null;
+  if (!urlOverride) {
+    queryString = { __a: '1' };
+  } 
+  else if (pageCursor != null) {
+    queryString = { max_id: pageCursor };
   }
 
   var url = '';
