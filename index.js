@@ -125,7 +125,7 @@ async function getPostsForAccount(accountName, id) {
         postsInput.push(post);
       }
 
-      var pageVariable = JSON.stringify({ "id": `${id}`, "first": 12, "after": `${pageInfo.end_cursor}` });
+      var pageVariable = JSON.stringify({ "id": `${id}`, "first": 25, "after": `${pageInfo.end_cursor}` });
       var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_POST_HASH}&variables=${encodeURIComponent(pageVariable)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
@@ -170,7 +170,7 @@ async function getComments(commentCollection, shortCode) {
       parseComments(localCommentCollection.edges, shortCode);
 
       // on next page, use below
-      var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 12, "after": `${pageInfo.end_cursor}` });
+      var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 25, "after": `${pageInfo.end_cursor}` });
       var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_COMMENT_HASH}&variables=${encodeURIComponent(commentVariables)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
