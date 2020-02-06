@@ -121,6 +121,7 @@ async function getPostsForAccount(accountName, id) {
       var countInCurrentPage = localPosts.edges.length;
       for (i = 0; i < countInCurrentPage; i++) {
         var postShortCode = localPosts.edges[i].node.shortcode;
+        console.log(`Starting to process shortCode: ${postShortCode}`);
         var post = await getIndividualPost(postShortCode);
         postsInput.push(post);
       }
@@ -130,7 +131,7 @@ async function getPostsForAccount(accountName, id) {
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
 
-      pageInfo.has_next_page = response.user.edge_owner_to_timeline_media.page_info;
+      pageInfo = response.user.edge_owner_to_timeline_media.page_info;
       localPosts = response.user.edge_owner_to_timeline_media;
     } catch (error) {
       console.error("Encountered error while processing post data.", error);
@@ -162,6 +163,7 @@ async function getIndividualPost(shortCode) {
 
 // short code
 async function getComments(commentCollection, shortCode) {
+  console.log(`Getting comments for shortCode: ${shortCode}`);
   var pageInfo = commentCollection.page_info;
   var localCommentCollection = commentCollection;
   while (pageInfo.has_next_page) {
