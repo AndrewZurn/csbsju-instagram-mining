@@ -78,7 +78,7 @@ const commentsProcessor = commentsInput.pipe(new Transform(commentsOpts, transfo
 
 async function main() {
   var accountInfo = await getAccountInfo(INSTAGRAM_ACCOUNT_NAME_TO_MINE);
-  await getPostsForAccount(INSTAGRAM_ACCOUNT_NAME_TO_MINE, accountInfo.id, accountInfo.response);
+  await getPostsForAccount(accountInfo.id, accountInfo.response);
 }
 
 async function getAccountInfo(accountName) {
@@ -107,7 +107,7 @@ async function getAccountInfo(accountName) {
   return { id: accountInfo.id, response };
 }
 
-async function getPostsForAccount(accountName, id, initialAccountResponse) {
+async function getPostsForAccount(id, initialAccountResponse) {
   // extract the information from the initial posts (from the account call).
   var { hasNextPage, endCursor } = await parsePosts(initialAccountResponse);
   while (hasNextPage) {
@@ -119,7 +119,8 @@ async function getPostsForAccount(accountName, id, initialAccountResponse) {
       var result = await parsePosts(response);
       hasNextPage = result.hasNextPage;
       endCursor = result.endCursor;
-    } catch (error) {
+    } 
+    catch (error) {
       console.error("Encountered error while processing post data.", error);
     }
   }
@@ -130,23 +131,26 @@ async function parsePosts(response) {
   var hasNextPage = postMedia.page_info.has_next_page;
   var endCursor = postMedia.page_info.end_cursor;
 
-  console.log(`Starting to parse shortCode: ${postMedia.shortcode}`);
-  for (i = 0; i < postMedia.edges.length; i++) {
-      postsInput.push({
-        id: postMedia.id,
-        shortcode: postMedia.shortcode,
-        video_view_count: postMedia.video_view_count,
-        is_video: postMedia.is_video,
-        video_duration: postMedia.video_duration,
-        type: postMedia.__typename,
-        image_height: postMedia.dimensions.height,
-        image_width: postMedia.dimensions.width,
-        caption: postMedia.edge_media_to_caption.edges[0] ? postMedia.edge_media_to_caption.edges[0].node.text.replace(/[\n\r,]/g, '') : '',
-        comment_count: postMedia.edge_media_to_parent_comment.count,
-        comments: await getComments(postMedia.edge_media_to_parent_comment, shortCode),
-        title: postMedia.title ? postMedia.title.replace(/[\n\r,]/g, '') : '',
-        likes: postMedia.edge_media_preview_like.count
-      });
+  for (var i = 0; i < postMedia.edges.length; i++) {
+    var node = postMedia.edges[i].node;
+    console.log(`Starting to parse shortCode: ${node.shortcode} i: ${i}`);
+    await getComments(node.edge_media_to_comment, node.shortcode);
+
+    postsInput.push({
+      id: node.id,
+      shortcode: node.shortcode,
+      video_view_count: node.video_view_count,
+      is_video: node.is_video,
+      video_duration: node.video_duration,
+      type: node.__typename,
+      image_height: node.dimensions.height,
+      image_width: node.dimensions.width,
+      caption: node.edge_media_to_caption.edges[0] ? node.edge_media_to_caption.edges[0].node.text.replace(/[\n\r,]/g, '') : '',
+      comment_count: node.edge_media_to_comment.count,
+      // comments: await getComments(node.edge_media_to_comment, node.shortcode),
+      title: node.title ? node.title.replace(/[\n\r,]/g, '') : '',
+      likes: node.edge_media_preview_like.count
+    });
   }
 
   return { hasNextPage, endCursor };
@@ -154,43 +158,45 @@ async function parsePosts(response) {
 
 
 // short code
-async function getComments(commentCollection, shortCode) {
+async function getComments(comments, shortCode) {
   console.log(`Getting comments for shortCode: ${shortCode}`);
-  var pageInfo = commentCollection.page_info;
-  var localCommentCollection = commentCollection;
-  while (pageInfo.has_next_page) {
+  var { hasNextPage, endCursor } = await parseComments(comments, shortCode);
+  while (hasNextPage) {
     try {
-      // go through all the comments
-      parseComments(localCommentCollection.edges, shortCode);
-
-      // on next page, use below
-      var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 25, "after": `${pageInfo.end_cursor}` });
+      var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 100, "after": `${endCursor}` });
       var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_COMMENT_HASH}&variables=${encodeURIComponent(commentVariables)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
-
-      pageInfo = response.shortcode_media.edge_media_to_parent_comment.page_info;
-      localCommentCollection = response.shortcode_media.edge_media_to_parent_comment;
-    }
-    catch (error) {
+      var result = await parseComments(response.shortcode_media.edge_media_to_parent_comment, shortCode);
+      hasNextPage = result.hasNextPage;
+      endCursor = result.endCursor;
+    } catch (error) {
       console.error("Encountered error while processing comment data.", error);
     }
   }
 }
 
-function parseComments(commentNodes, shortCode) {
-  for (i = 0; i < commentNodes.length; i++) {
-    var comment = commentNodes[i].node;
+function parseComments(comments, shortCode) {
+  if (!comments.page_info) {
+    return { hasNextPage: false, endCursor: null }; // the posts from the initial page/url: https://www.instagram.com/niketraining/?__a=1 don't have comments on them... figure out a workaround later
+  }
+  var hasNextPage = comments.page_info.has_next_page;
+  var endCursor = comments.page_info.end_cursor;
+
+  for (var i = 0; i < comments.edges.length; i++) {
+    var comment = comments.edges[i].node;
     commentsInput.push({
       id: comment.id,
       shortcode: shortCode,
       text: comment.text ? comment.text.replace(/[\n\r,]/g, '') : '',
       created_at: comment.created_at,
       username: comment.owner.username,
-      likes: comment.edge_liked_by.count,
-      comment_count: comment.edge_threaded_comments.count
+      likes: comment.edge_liked_by && comment.edge_liked_by.count ? comment.edge_liked_by.count : '',
+      comment_count: comment.edge_threaded_comments && comment.edge_threaded_comments.count ? comment.edge_threaded_comments.count : ''
     });
   }
+
+  return { hasNextPage, endCursor };
 }
 
 // Make request to url to get account information, 
