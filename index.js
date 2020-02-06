@@ -1,9 +1,8 @@
 var request = require("request-promise");
 
 const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'niketraining';
-const INSTAGRAM_QUERY_HASH = 'e769aa130647d2354c40ea6a439bfc08'; // this may change periodically
-
-// const INSTAGRAM_QUERY_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
+const INSTAGRAM_QUERY_POST_HASH = 'e769aa130647d2354c40ea6a439bfc08'; // this may change periodically
+const INSTAGRAM_QUERY_COMMENT_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
 
 async function main() {
   var accountInfo = await getAccountInfo(INSTAGRAM_ACCOUNT_NAME_TO_MINE);
@@ -52,7 +51,7 @@ async function getPostsForAccount(accountName, id) {
   var response = await _makeRequest(options);
 
   // start extracting information for the user's posts
-  
+
   var localPosts = response.user.edge_owner_to_timeline_media;
   var pageInfo = localPosts.page_info;
 
@@ -68,18 +67,18 @@ async function getPostsForAccount(accountName, id) {
         posts.push(post);
       }
 
-      var pageVariable = JSON.stringify({"id":`${id}`,"first":12,"after":`${pageInfo.end_cursor}`});
-      var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_HASH}&variables=${encodeURIComponent(pageVariable)}`;
+      var pageVariable = JSON.stringify({ "id": `${id}`, "first": 12, "after": `${pageInfo.end_cursor}` });
+      var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_POST_HASH}&variables=${encodeURIComponent(pageVariable)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
 
       pageInfo = response.user.edge_owner_to_timeline_media.page_info;
       localPosts = response.user.edge_owner_to_timeline_media;
- 
+
     } catch (error) {
       console.error("Encountered error while processing post data.", error);
     }
-  } 
+  }
   return posts;
 }
 
@@ -93,16 +92,17 @@ async function getIndividualPost(shortCode) {
   postMedia.image_width = postMedia.dimensions.width;
 
   if (postMedia.edge_media_to_caption.edges[0]) {
-    postMedia.caption = postMedia.edge_media_to_caption.edges[0].node.text.replace(/[\n\r,]/g,'');
+    postMedia.caption = postMedia.edge_media_to_caption.edges[0].node.text.replace(/[\n\r,]/g, '');
   }
 
   // parse edge_media_to_parent_comment actual nodes
   postMedia.comment_count = postMedia.edge_media_to_parent_comment.count;
   postMedia.comments = await getComments(postMedia.edge_media_to_parent_comment, shortCode);
+  console.log(postMedia.comments);
 
-  postMedia.title = postMedia.title ? postMedia.title.replace(/[\n\r,]/g,'') : '';
+  postMedia.title = postMedia.title ? postMedia.title.replace(/[\n\r,]/g, '') : '';
   postMedia.likes = postMedia.edge_media_preview_like.count;
-  
+
   delete postMedia.__typename;
   delete postMedia.dimensions;
   delete postMedia.gating_info;
@@ -130,6 +130,7 @@ async function getIndividualPost(shortCode) {
   return postMedia;
 }
 
+
 // short code
 async function getComments(commentCollection, shortCode) {
   var pageInfo = commentCollection.page_info;
@@ -138,26 +139,41 @@ async function getComments(commentCollection, shortCode) {
 
   var comments = [];
   while (pageInfo.has_next_page) {
-    // go through all the comments
-    comments = comments.push(parseComments(localCommentCollection.edges));
+    try {
+      // go through all the comments
+      comments = comments.concat(parseComments(localCommentCollection.edges));
 
-    // on next page, use below
-    var commentVariables = {"shortcode":`${shortCode}`,"first":12,"after":`${page_info.end_cursor}`}
-    var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_HASH}&variables=${encodeURIComponent(commentVariables)}`;
-    var options = _getRequestOptions(null, null, null, urlOverride);
-    var response = await _makeRequest(options);
+      // on next page, use below
+      var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 12, "after": `${pageInfo.end_cursor}` });
+      var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_COMMENT_HASH}&variables=${encodeURIComponent(commentVariables)}`;
+      var options = _getRequestOptions(null, null, null, urlOverride);
+      var response = await _makeRequest(options);
 
-    pageInfo = response.shortcode_media.edge_media_to_parent_comment.page_info;
-    localCommentCollection = response.shortcode_media.edge_media_to_parent_comment;
+      pageInfo = response.shortcode_media.edge_media_to_parent_comment.page_info;
+      localCommentCollection = response.shortcode_media.edge_media_to_parent_comment;
+    }
+    catch (error) {
+      console.error("Encountered error while processing comment data.", error);
+    }
   }
 
   return comments;
 }
 
 function parseComments(commentNodes) {
+  var comments = [];
   for (i = 0; i < commentNodes.length; i++) {
-    // parse the comments, return as an array
+    var comment = commentNodes[i].node;
+    comments.push({
+      id: comment.id,
+      text: comment.text ? comment.text.replace(/[\n\r,]/g, '') : '',
+      created_at: comment.created_at,
+      username: comment.owner.username,
+      likes: comment.edge_liked_by.count,
+      comment_count: comment.edge_threaded_comments.count
+    });
   }
+  return comments;
 }
 
 // Make request to url to get account information, 
@@ -173,7 +189,7 @@ function _getRequestOptions(accountName, shortCode, pageCursor, urlOverride) {
   var queryString = null;
   if (!urlOverride) {
     queryString = { __a: '1' };
-  } 
+  }
   else if (pageCursor != null) {
     queryString = { max_id: pageCursor };
   }
@@ -189,11 +205,11 @@ function _getRequestOptions(accountName, shortCode, pageCursor, urlOverride) {
     url = urlOverride;
   }
 
-  return { 
+  return {
     method: 'GET',
     url: url,
     qs: queryString,
-    headers: { 
+    headers: {
       Connection: 'keep-alive',
     },
     resolveWithFullResponse: true,
