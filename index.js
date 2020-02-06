@@ -41,34 +41,30 @@ async function main() {
   const accountsProcessor = accountsInput.pipe(new Transform(accountOpts, transformOpts)).pipe(accountsOutput);
 
   // // write the posts - not the best place, should do it as they are gotten from instaram, but will do for now
-  // const postsOpts = { 
-  //   fields: [
-  //     'id',
-  //     'biography',
-  //     'external_url',
-  //     'edge_followed_by',
-  //     'full_name',
-  //     'has_channel',
-  //     'is_business_account',
-  //     'is_joined_recently',
-  //     'business_category_name',
-  //     'is_verified',
-  //     'profile_pic_url',
-  //     'username',
-  //     'connected_fb_page',
-  //     'follows_count',
-  //     'follows_follower_count',
-  //     'video_count',
-  //     'timeline_count'
-  //   ] 
-  // };
+  const postsOpts = { 
+    fields: [
+      'id',
+      'shortcode',
+      'video_view_count',
+      'is_video',
+      'video_duration',
+      'type',
+      'image_height',
+      'image_width',
+      'caption',
+      'comment_count',
+      'comments',
+      'title',
+      'likes'
+    ] 
+  };
 
-  // const postsInput = new Readable({ objectMode: true });
-  // postsInput._read = () => {};
-  // posts.forEach(post => postsInput.push(post));
+  const postsInput = new Readable({ objectMode: true });
+  postsInput._read = () => {};
+  posts.forEach(post => postsInput.push(post));
 
-  // const postsOutput = createWriteStream('./posts.csv', { encoding: 'utf8' });
-  // const postsProcessor = postsInput.pipe(new Transform(postsOpts, transformOpts)).pipe(postsOutput);
+  const postsOutput = createWriteStream('./posts.csv', { encoding: 'utf8' });
+  const postsProcessor = postsInput.pipe(new Transform(postsOpts, transformOpts)).pipe(postsOutput);
 
   // // write the comments - not the best place, should do it as they are gotten from instaram, but will do for now
   // const commentsOpts = { 
@@ -161,47 +157,21 @@ async function getIndividualPost(shortCode) {
   var response = await _makeRequest(options);
   var postMedia = response.shortcode_media;
 
-  postMedia.type = postMedia.__typename;
-  postMedia.image_height = postMedia.dimensions.height;
-  postMedia.image_width = postMedia.dimensions.width;
-
-  if (postMedia.edge_media_to_caption.edges[0]) {
-    postMedia.caption = postMedia.edge_media_to_caption.edges[0].node.text.replace(/[\n\r,]/g, '');
-  }
-
-  // parse edge_media_to_parent_comment actual nodes
-  postMedia.comment_count = postMedia.edge_media_to_parent_comment.count;
-  postMedia.comments = await getComments(postMedia.edge_media_to_parent_comment, shortCode);
-
-  postMedia.title = postMedia.title ? postMedia.title.replace(/[\n\r,]/g, '') : '';
-  postMedia.likes = postMedia.edge_media_preview_like.count;
-
-  delete postMedia.__typename;
-  delete postMedia.dimensions;
-  delete postMedia.gating_info;
-  delete postMedia.fact_check_overall_rating;
-  delete postMedia.fact_check_information;
-  delete postMedia.media_preview;
-  delete postMedia.display_resources;
-  delete postMedia.dash_info;
-  delete postMedia.tracking_token;
-  delete postMedia.edge_media_to_caption;
-  delete postMedia.edge_media_to_tagged_user;
-  delete postMedia.edge_media_to_parent_comment;
-  delete postMedia.edge_media_preview_comment;
-  delete postMedia.commenting_disabled_for_viewer;
-  delete postMedia.edge_media_to_sponsor_user;
-  delete postMedia.viewer_has_liked;
-  delete postMedia.viewer_has_saved;
-  delete postMedia.viewer_has_saved_to_collection;
-  delete postMedia.viewer_in_photo_of_you;
-  delete postMedia.viewer_can_reshare;
-  delete postMedia.owner;
-  delete postMedia.edge_web_media_to_related_media;
-  delete postMedia.encoding_status;
-  delete postMedia.thumbnail_src;
-
-  return postMedia;
+  return {
+    id: postMedia.id,
+    shortcode: postMedia.shortcode,
+    video_view_count: postMedia.video_view_count,
+    is_video: postMedia.is_video,
+    video_duration: postMedia.video_duration,
+    type: postMedia.__typename,
+    image_height: postMedia.dimensions.height,
+    image_width: postMedia.dimensions.width,
+    caption: postMedia.edge_media_to_caption.edges[0] ? postMedia.edge_media_to_caption.edges[0].node.text.replace(/[\n\r,]/g, '') : '',
+    comment_count: postMedia.edge_media_to_parent_comment.count,
+    comments: await getComments(postMedia.edge_media_to_parent_comment, shortCode),
+    title: postMedia.title ? postMedia.title.replace(/[\n\r,]/g, '') : '',
+    likes: postMedia.edge_media_preview_like.count
+  };
 }
 
 
