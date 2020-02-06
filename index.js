@@ -78,7 +78,7 @@ const commentsProcessor = commentsInput.pipe(new Transform(commentsOpts, transfo
 
 async function main() {
   var accountInfo = await getAccountInfo(INSTAGRAM_ACCOUNT_NAME_TO_MINE);
-  await getPostsForAccount(INSTAGRAM_ACCOUNT_NAME_TO_MINE, accountInfo.id);
+  await getPostsForAccount(INSTAGRAM_ACCOUNT_NAME_TO_MINE, accountInfo.id, accountInfo.response);
 }
 
 async function getAccountInfo(accountName) {
@@ -104,60 +104,52 @@ async function getAccountInfo(accountName) {
   };
   accountsInput.push(accountInfo);
 
-  return accountInfo;
+  return { id: accountInfo.id, response };
 }
 
-async function getPostsForAccount(accountName, id) {
-  var options = _getRequestOptions(accountName);
-  var response = await _makeRequest(options);
-
-  // start extracting information for the user's posts
-  var localPosts = response.user.edge_owner_to_timeline_media;
-  var pageInfo = localPosts.page_info;
-
-  while (pageInfo.has_next_page) {
+async function getPostsForAccount(accountName, id, initialAccountResponse) {
+  // extract the information from the initial posts (from the account call).
+  var { hasNextPage, endCursor } = await parsePosts(initialAccountResponse);
+  while (hasNextPage) {
     try {
-      // get the current count of posts in this page and iterate over each
-      var countInCurrentPage = localPosts.edges.length;
-      for (i = 0; i < countInCurrentPage; i++) {
-        var postShortCode = localPosts.edges[i].node.shortcode;
-        console.log(`Starting to process shortCode: ${postShortCode}`);
-        var post = await getIndividualPost(postShortCode);
-        postsInput.push(post);
-      }
-
-      var pageVariable = JSON.stringify({ "id": `${id}`, "first": 25, "after": `${pageInfo.end_cursor}` });
-      var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_POST_HASH}&variables=${encodeURIComponent(pageVariable)}`;
+      var pageVariable = JSON.stringify({ "id": `${id}`, "first": 25, "after": `${endCursor}` });
+      urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_POST_HASH}&variables=${encodeURIComponent(pageVariable)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
-
-      pageInfo = response.user.edge_owner_to_timeline_media.page_info;
-      localPosts = response.user.edge_owner_to_timeline_media;
+      var result = await parsePosts(response);
+      hasNextPage = result.hasNextPage;
+      endCursor = result.endCursor;
     } catch (error) {
       console.error("Encountered error while processing post data.", error);
     }
   }
 }
 
-async function getIndividualPost(shortCode) {
-  var options = _getRequestOptions(null, shortCode);
-  var response = await _makeRequest(options);
-  var postMedia = response.shortcode_media;
-  return {
-    id: postMedia.id,
-    shortcode: postMedia.shortcode,
-    video_view_count: postMedia.video_view_count,
-    is_video: postMedia.is_video,
-    video_duration: postMedia.video_duration,
-    type: postMedia.__typename,
-    image_height: postMedia.dimensions.height,
-    image_width: postMedia.dimensions.width,
-    caption: postMedia.edge_media_to_caption.edges[0] ? postMedia.edge_media_to_caption.edges[0].node.text.replace(/[\n\r,]/g, '') : '',
-    comment_count: postMedia.edge_media_to_parent_comment.count,
-    comments: await getComments(postMedia.edge_media_to_parent_comment, shortCode),
-    title: postMedia.title ? postMedia.title.replace(/[\n\r,]/g, '') : '',
-    likes: postMedia.edge_media_preview_like.count
-  };
+async function parsePosts(response) {
+  var postMedia = response.user.edge_owner_to_timeline_media;
+  var hasNextPage = postMedia.page_info.has_next_page;
+  var endCursor = postMedia.page_info.end_cursor;
+
+  console.log(`Starting to parse shortCode: ${postMedia.shortcode}`);
+  for (i = 0; i < postMedia.edges.length; i++) {
+      postsInput.push({
+        id: postMedia.id,
+        shortcode: postMedia.shortcode,
+        video_view_count: postMedia.video_view_count,
+        is_video: postMedia.is_video,
+        video_duration: postMedia.video_duration,
+        type: postMedia.__typename,
+        image_height: postMedia.dimensions.height,
+        image_width: postMedia.dimensions.width,
+        caption: postMedia.edge_media_to_caption.edges[0] ? postMedia.edge_media_to_caption.edges[0].node.text.replace(/[\n\r,]/g, '') : '',
+        comment_count: postMedia.edge_media_to_parent_comment.count,
+        comments: await getComments(postMedia.edge_media_to_parent_comment, shortCode),
+        title: postMedia.title ? postMedia.title.replace(/[\n\r,]/g, '') : '',
+        likes: postMedia.edge_media_preview_like.count
+      });
+  }
+
+  return { hasNextPage, endCursor };
 }
 
 
