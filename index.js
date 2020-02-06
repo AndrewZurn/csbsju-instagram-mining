@@ -1,12 +1,51 @@
 var request = require("request-promise");
+const { createWriteStream } = require('fs');
+const { Transform } = require("json2csv");
+const { Readable } = require('stream');
 
 const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'niketraining';
 const INSTAGRAM_QUERY_POST_HASH = 'e769aa130647d2354c40ea6a439bfc08'; // this may change periodically
 const INSTAGRAM_QUERY_COMMENT_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
 
+const transformOpts = { highWaterMark: 8192 };
+
 async function main() {
+  const accountOutputFile = createWriteStream('./accounts.csv', { encoding: 'utf8' });
+  const postsOutputFile = createWriteStream('./posts.csv', { encoding: 'utf8' });
+  const commentsOutputFile = createWriteStream('./comments.csv', { encoding: 'utf8' });
+
   var accountInfo = await getAccountInfo(INSTAGRAM_ACCOUNT_NAME_TO_MINE);
-  console.log(accountInfo); // TODO: Write this information to a csv file.
+  const opts = { 
+    fields: [
+      'id',
+      'biography',
+      'external_url',
+      'edge_followed_by',
+      'full_name',
+      'has_channel',
+      'is_business_account',
+      'is_joined_recently',
+      'business_category_name',
+      'is_verified',
+      'profile_pic_url',
+      'username',
+      'connected_fb_page',
+      'follows_count',
+      'follows_follower_count',
+      'video_count',
+      'timeline_count'
+    ] 
+  };
+
+  const input = new Readable({ objectMode: true });
+  input._read = () => {};
+  input.push(accountInfo);
+
+  const output = createWriteStream('./accounts.csv', { encoding: 'utf8' });
+  const transformOpts = { objectMode: true };
+
+  const json2csv = new Transform(opts, transformOpts);
+  const processor = input.pipe(json2csv).pipe(output);
 
   var postInfo = await getPostsForAccount(INSTAGRAM_ACCOUNT_NAME_TO_MINE, accountInfo.id);
   console.log(postInfo);
@@ -18,6 +57,7 @@ async function getAccountInfo(accountName) {
   var userObject = response.user;
 
   // move some keys around to flatten out the information
+  userObject.followed_by_count = userObject.edge_followed_by.count;
   userObject.follows_count = userObject.edge_follow.count;
   userObject.follows_follower_count = userObject.edge_mutual_followed_by.count;
   userObject.video_count = userObject.edge_felix_video_timeline.count;
@@ -25,6 +65,7 @@ async function getAccountInfo(accountName) {
 
   delete userObject['blocked_by_viewer'];
   delete userObject['followed_by_viewer'];
+  delete userObject['edge_followed_by'];
   delete userObject['external_url_linkshimmed'];
   delete userObject['country_block'];
   delete userObject['restricted_by_viewer'];
@@ -112,6 +153,7 @@ async function getIndividualPost(shortCode) {
   delete postMedia.display_resources;
   delete postMedia.dash_info;
   delete postMedia.tracking_token;
+  delete postMedia.edge_media_to_caption;
   delete postMedia.edge_media_to_tagged_user;
   delete postMedia.edge_media_to_parent_comment;
   delete postMedia.edge_media_preview_comment;
