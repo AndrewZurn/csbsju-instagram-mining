@@ -7,15 +7,11 @@ const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'niketraining';
 const INSTAGRAM_QUERY_POST_HASH = 'e769aa130647d2354c40ea6a439bfc08'; // this may change periodically
 const INSTAGRAM_QUERY_COMMENT_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
 
-const transformOpts = { highWaterMark: 8192 };
+const transformOpts = { objectMode: true };
 
 async function main() {
-  const accountOutputFile = createWriteStream('./accounts.csv', { encoding: 'utf8' });
-  const postsOutputFile = createWriteStream('./posts.csv', { encoding: 'utf8' });
-  const commentsOutputFile = createWriteStream('./comments.csv', { encoding: 'utf8' });
-
   var accountInfo = await getAccountInfo(INSTAGRAM_ACCOUNT_NAME_TO_MINE);
-  const opts = { 
+  const accountOpts = { 
     fields: [
       'id',
       'biography',
@@ -37,18 +33,64 @@ async function main() {
     ] 
   };
 
-  const input = new Readable({ objectMode: true });
-  input._read = () => {};
-  input.push(accountInfo);
+  const accountsInput = new Readable({ objectMode: true });
+  accountsInput._read = () => {};
+  accountsInput.push(accountInfo);
 
-  const output = createWriteStream('./accounts.csv', { encoding: 'utf8' });
-  const transformOpts = { objectMode: true };
+  const accountsOutput = createWriteStream('./accounts.csv', { encoding: 'utf8' });
+  const accountsProcessor = accountsInput.pipe(new Transform(accountOpts, transformOpts)).pipe(accountsOutput);
 
-  const json2csv = new Transform(opts, transformOpts);
-  const processor = input.pipe(json2csv).pipe(output);
+  // // write the posts - not the best place, should do it as they are gotten from instaram, but will do for now
+  // const postsOpts = { 
+  //   fields: [
+  //     'id',
+  //     'biography',
+  //     'external_url',
+  //     'edge_followed_by',
+  //     'full_name',
+  //     'has_channel',
+  //     'is_business_account',
+  //     'is_joined_recently',
+  //     'business_category_name',
+  //     'is_verified',
+  //     'profile_pic_url',
+  //     'username',
+  //     'connected_fb_page',
+  //     'follows_count',
+  //     'follows_follower_count',
+  //     'video_count',
+  //     'timeline_count'
+  //   ] 
+  // };
 
-  var postInfo = await getPostsForAccount(INSTAGRAM_ACCOUNT_NAME_TO_MINE, accountInfo.id);
-  console.log(postInfo);
+  // const postsInput = new Readable({ objectMode: true });
+  // postsInput._read = () => {};
+  // posts.forEach(post => postsInput.push(post));
+
+  // const postsOutput = createWriteStream('./posts.csv', { encoding: 'utf8' });
+  // const postsProcessor = postsInput.pipe(new Transform(postsOpts, transformOpts)).pipe(postsOutput);
+
+  // // write the comments - not the best place, should do it as they are gotten from instaram, but will do for now
+  // const commentsOpts = { 
+  //   fields: [
+  //     'id',
+  //     'shortcode',
+  //     'text',
+  //     'created_at',
+  //     'username',
+  //     'likes',
+  //     'comment_count'
+  //   ] 
+  // };
+
+  // const commentsInput = new Readable({ objectMode: true });
+  // commentsInput._read = () => {};
+  // posts.forEach(post => post.comments.forEach(comment => commentsInput.push(comment)));
+
+  // const commentsOutput = createWriteStream('./comments.csv', { encoding: 'utf8' });
+  // const commentsProcessor = postsInput.pipe(new Transform(commentsOpts, transformOpts)).pipe(postsOutput);
+
+  await getPostsForAccount(INSTAGRAM_ACCOUNT_NAME_TO_MINE, accountInfo.id);
 }
 
 async function getAccountInfo(accountName) {
@@ -115,11 +157,11 @@ async function getPostsForAccount(accountName, id) {
 
       pageInfo = response.user.edge_owner_to_timeline_media.page_info;
       localPosts = response.user.edge_owner_to_timeline_media;
-
     } catch (error) {
       console.error("Encountered error while processing post data.", error);
     }
   }
+
   return posts;
 }
 
@@ -139,7 +181,6 @@ async function getIndividualPost(shortCode) {
   // parse edge_media_to_parent_comment actual nodes
   postMedia.comment_count = postMedia.edge_media_to_parent_comment.count;
   postMedia.comments = await getComments(postMedia.edge_media_to_parent_comment, shortCode);
-  console.log(postMedia.comments);
 
   postMedia.title = postMedia.title ? postMedia.title.replace(/[\n\r,]/g, '') : '';
   postMedia.likes = postMedia.edge_media_preview_like.count;
@@ -183,7 +224,7 @@ async function getComments(commentCollection, shortCode) {
   while (pageInfo.has_next_page) {
     try {
       // go through all the comments
-      comments = comments.concat(parseComments(localCommentCollection.edges));
+      comments = comments.concat(parseComments(localCommentCollection.edges, shortCode));
 
       // on next page, use below
       var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 12, "after": `${pageInfo.end_cursor}` });
@@ -202,12 +243,13 @@ async function getComments(commentCollection, shortCode) {
   return comments;
 }
 
-function parseComments(commentNodes) {
+function parseComments(commentNodes, shortCode) {
   var comments = [];
   for (i = 0; i < commentNodes.length; i++) {
     var comment = commentNodes[i].node;
     comments.push({
       id: comment.id,
+      shortcode: shortCode,
       text: comment.text ? comment.text.replace(/[\n\r,]/g, '') : '',
       created_at: comment.created_at,
       username: comment.owner.username,
