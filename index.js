@@ -7,6 +7,7 @@ var sleep = require('sleep');
 const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'niketraining';
 const INSTAGRAM_QUERY_POST_HASH = 'e769aa130647d2354c40ea6a439bfc08'; // this may change periodically
 const INSTAGRAM_QUERY_COMMENT_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
+const INSTAGRAM_QUERY_CHILD_COMMENT_HASH = '1ee91c32fc020d44158a3192eda98247'; // this may change periodically
 
 const transformOpts = { objectMode: true };
 const accountOpts = { 
@@ -52,6 +53,7 @@ const postsOpts = {
 const commentsOpts = { 
   fields: [
     'id',
+    'parent_comment_id',
     'shortcode',
     'text',
     'created_at',
@@ -160,14 +162,14 @@ async function parsePosts(response) {
 // short code
 async function getComments(comments, shortCode) {
   console.log(`Getting comments for shortCode: ${shortCode}`);
-  var { hasNextPage, endCursor } = await parseComments(comments, shortCode);
+  var { hasNextPage, endCursor } = await parseComments(comments, shortCode, null);
   while (hasNextPage) {
     try {
       var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 100, "after": `${endCursor}` });
       var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_COMMENT_HASH}&variables=${encodeURIComponent(commentVariables)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
-      var result = await parseComments(response.shortcode_media.edge_media_to_parent_comment, shortCode);
+      var result = await parseComments(response.shortcode_media.edge_media_to_parent_comment, shortCode, null);
       hasNextPage = result.hasNextPage;
       endCursor = result.endCursor;
     } catch (error) {
@@ -176,7 +178,26 @@ async function getComments(comments, shortCode) {
   }
 }
 
-function parseComments(comments, shortCode) {
+async function getChildComments(comments, shortCode, parentCommentId) {
+  // https://www.instagram.com/graphql/query/?query_hash=1ee91c32fc020d44158a3192eda98247&variables=%7B%22comment_id%22%3A%2218034801927216250%22%2C%22first%22%3A6%2C%22after%22%3A%22QVFETWZCSmZCRHN4XzZkaHBuV2tiVmN2Z2ZSaEw4UEF6ZnFOT1VjN3ZFaEU3WlhCSmd6UGNrVFlpMlkwQjlQWk5IdVZNdGR4VjlkOUQ2VnJzaHpmNXJFYQ%3D%3D%22%7D
+  console.log(`Getting child comments for parentCommentId: ${parentCommentId} and shortCode: ${shortCode}`);
+  var { hasNextPage, endCursor } = await parseComments(comments, shortCode, parentCommentId);
+  while (hasNextPage) {
+    try {
+      var commentVariables = JSON.stringify({ "comment_id": `${parentCommentId}`, "first": 100, "after": `${endCursor}` });
+      var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_CHILD_COMMENT_HASH}&variables=${encodeURIComponent(commentVariables)}`;
+      var options = _getRequestOptions(null, null, null, urlOverride);
+      var response = await _makeRequest(options);
+      var result = await parseComments(response.comment.edge_threaded_comments, shortCode, parentCommentId);
+      hasNextPage = result.hasNextPage;
+      endCursor = result.endCursor;
+    } catch (error) {
+      console.error("Encountered error while processing child comment data.", error);
+    }
+  }
+}
+
+function parseComments(comments, shortCode, parentCommentId) {
   if (!comments.page_info) {
     return { hasNextPage: false, endCursor: null }; // the posts from the initial page/url: https://www.instagram.com/niketraining/?__a=1 don't have comments on them... figure out a workaround later
   }
@@ -185,8 +206,18 @@ function parseComments(comments, shortCode) {
 
   for (var i = 0; i < comments.edges.length; i++) {
     var comment = comments.edges[i].node;
+    var commentId = comment.id;
+
+    var childComments = comment.edge_threaded_comments;
+    if (childComments && childComments.count > 0) {
+      console.log(`CommentId: ${commentId} has ${childComments.count} comments.`)
+      console.log(childComments);
+      getChildComments(childComments, shortCode, commentId);
+    }
+
     commentsInput.push({
-      id: comment.id,
+      id: commentId,
+      parent_comment_id: parentCommentId,
       shortcode: shortCode,
       text: comment.text ? comment.text.replace(/[\n\r,]/g, '') : '',
       created_at: comment.created_at,
