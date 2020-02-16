@@ -1,3 +1,4 @@
+var fs = require('fs');
 var request = require("request-promise");
 const { createWriteStream } = require('fs');
 const { Transform } = require("json2csv");
@@ -64,19 +65,22 @@ const commentsOpts = {
   ] 
 };
 
+// make our ouput directory
+fs.mkdirSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}`);
+
 const accountsInput = new Readable({ objectMode: true });
 accountsInput._read = () => {};
-const accountsOutput = createWriteStream('./accounts.csv', { encoding: 'utf8' });
+const accountsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/accounts.csv`, { encoding: 'utf8' });
 const accountsProcessor = accountsInput.pipe(new Transform(accountOpts, transformOpts)).pipe(accountsOutput);
 
 const postsInput = new Readable({ objectMode: true });
 postsInput._read = () => {};
-const postsOutput = createWriteStream('./posts.csv', { encoding: 'utf8' });
+const postsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/posts.csv`, { encoding: 'utf8' });
 const postsProcessor = postsInput.pipe(new Transform(postsOpts, transformOpts)).pipe(postsOutput);
 
 const commentsInput = new Readable({ objectMode: true });
 commentsInput._read = () => {};
-const commentsOutput = createWriteStream('./comments.csv', { encoding: 'utf8' });
+const commentsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/comments.csv`, { encoding: 'utf8' });
 const commentsProcessor = commentsInput.pipe(new Transform(commentsOpts, transformOpts)).pipe(commentsOutput);
 
 async function main() {
@@ -234,8 +238,6 @@ function parseComments(comments, shortCode, parentCommentId) {
 
     var childComments = comment.edge_threaded_comments;
     if (childComments && childComments.count > 0) {
-      console.log(`CommentId: ${commentId} has ${childComments.count} comments.`)
-      console.log(childComments);
       getChildComments(childComments, shortCode, commentId);
     }
 
