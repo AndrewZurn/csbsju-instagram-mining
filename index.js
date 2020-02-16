@@ -5,7 +5,7 @@ const { Transform } = require("json2csv");
 const { Readable } = require('stream');
 var sleep = require('sleep');
 
-const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'niketraining';
+const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'nike';
 const INSTAGRAM_QUERY_TIMELINE_POST_HASH = '06f8942777d97c874d3d88066e5e3824'; // this may change periodically
 const INSTAGRAM_QUERY_POST_HASH = 'e769aa130647d2354c40ea6a439bfc08'; // this may change periodically
 const INSTAGRAM_QUERY_COMMENT_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
@@ -128,7 +128,7 @@ async function getPostsForAccount(id, initialAccountResponse) {
 
   while (hasNextPage) {
     try {
-      var pageVariable = JSON.stringify({ "id": `${id}`, "first": 100, "after": `${endCursor}` });
+      var pageVariable = JSON.stringify({ "id": `${id}`, "first": 50, "after": `${endCursor}` });
       urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_POST_HASH}&variables=${encodeURIComponent(pageVariable)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
@@ -146,7 +146,7 @@ async function getPostsForAccount(id, initialAccountResponse) {
 async function getTimelinePostsComments(shortCodes) {
   shortCodes.forEach(async shortCode => {
     try {
-      var pageVariable = JSON.stringify({ shortcode: shortCode, child_comment_count: 25, fetch_comment_count: 100, parent_comment_count: 50, has_threaded_comments: true });
+      var pageVariable = JSON.stringify({ shortcode: shortCode, child_comment_count: 25, fetch_comment_count: 50, parent_comment_count: 50, has_threaded_comments: true });
       urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_TIMELINE_POST_HASH}&variables=${encodeURIComponent(pageVariable)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
@@ -194,7 +194,7 @@ async function getComments(comments, shortCode) {
   var { hasNextPage, endCursor } = await parseComments(comments, shortCode, null);
   while (hasNextPage) {
     try {
-      var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 1000, "after": `${endCursor}` });
+      var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 50, "after": `${endCursor}` });
       var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_COMMENT_HASH}&variables=${encodeURIComponent(commentVariables)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
@@ -212,7 +212,7 @@ async function getChildComments(comments, shortCode, parentCommentId) {
   var { hasNextPage, endCursor } = await parseComments(comments, shortCode, parentCommentId);
   while (hasNextPage) {
     try {
-      var commentVariables = JSON.stringify({ "comment_id": `${parentCommentId}`, "first": 1000, "after": `${endCursor}` });
+      var commentVariables = JSON.stringify({ "comment_id": `${parentCommentId}`, "first": 50, "after": `${endCursor}` });
       var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_CHILD_COMMENT_HASH}&variables=${encodeURIComponent(commentVariables)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
@@ -232,7 +232,7 @@ function parseComments(comments, shortCode, parentCommentId) {
     return { hasNextPage: false, endCursor: null };
   }
 
-  console.log(`Getting comments for shortCode: ${shortCode}`);
+  console.log(`Getting ${comments.edges.length} comments for shortCode: ${shortCode}`);
   var hasNextPage = comments.page_info.has_next_page;
   var endCursor = comments.page_info.end_cursor;
   for (var i = 0; i < comments.edges.length; i++) {
