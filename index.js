@@ -5,6 +5,7 @@ const { Readable } = require('stream');
 var sleep = require('sleep');
 
 const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'niketraining';
+const INSTAGRAM_QUERY_TIMELINE_POST_HASH = '06f8942777d97c874d3d88066e5e3824'; // this may change periodically
 const INSTAGRAM_QUERY_POST_HASH = 'e769aa130647d2354c40ea6a439bfc08'; // this may change periodically
 const INSTAGRAM_QUERY_COMMENT_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
 const INSTAGRAM_QUERY_CHILD_COMMENT_HASH = '1ee91c32fc020d44158a3192eda98247'; // this may change periodically
@@ -112,6 +113,12 @@ async function getAccountInfo(accountName) {
 async function getPostsForAccount(id, initialAccountResponse) {
   // extract the information from the initial posts (from the account call).
   var { hasNextPage, endCursor } = await parsePosts(initialAccountResponse);
+
+  // because the first timeline query doesn't have comments on each post, we need to
+  // make a call for each individual post to a details endpoint to get those comments
+  var shortCodes = initialAccountResponse.user.edge_owner_to_timeline_media.edges.map(post => post.node.shortcode);
+  await getTimelinePostsComments(shortCodes);
+
   while (hasNextPage) {
     try {
       var pageVariable = JSON.stringify({ "id": `${id}`, "first": 25, "after": `${endCursor}` });
@@ -126,6 +133,21 @@ async function getPostsForAccount(id, initialAccountResponse) {
       console.error("Encountered error while processing post data.", error);
     }
   }
+}
+
+// Get the comments for the initial posts on the timeline (they initial structure does not have comments in it's payload)
+async function getTimelinePostsComments(shortCodes) {
+  shortCodes.forEach(async shortCode => {
+    try {
+      var pageVariable = JSON.stringify({ shortcode: shortCode, child_comment_count: 25, fetch_comment_count: 100, parent_comment_count: 50, has_threaded_comments: true });
+      urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_TIMELINE_POST_HASH}&variables=${encodeURIComponent(pageVariable)}`;
+      var options = _getRequestOptions(null, null, null, urlOverride);
+      var response = await _makeRequest(options);
+      await parseComments(response.shortcode_media.edge_media_to_parent_comment, shortCode);
+    } catch (error) {
+      console.error("Encountered error while processing individual timeline post data.", error);
+    }
+  });
 }
 
 async function parsePosts(response) {
@@ -161,7 +183,6 @@ async function parsePosts(response) {
 
 // short code
 async function getComments(comments, shortCode) {
-  console.log(`Getting comments for shortCode: ${shortCode}`);
   var { hasNextPage, endCursor } = await parseComments(comments, shortCode, null);
   while (hasNextPage) {
     try {
@@ -198,12 +219,15 @@ async function getChildComments(comments, shortCode, parentCommentId) {
 }
 
 function parseComments(comments, shortCode, parentCommentId) {
+  // the posts from the initial page/url: https://www.instagram.com/niketraining/?__a=1 don't have comments on them...
+  // we handle this above by getting the initial posts' comments through an additional query (made in: getTimelinePostsComments)
   if (!comments.page_info) {
-    return { hasNextPage: false, endCursor: null }; // the posts from the initial page/url: https://www.instagram.com/niketraining/?__a=1 don't have comments on them... figure out a workaround later
+    return { hasNextPage: false, endCursor: null };
   }
+
+  console.log(`Getting comments for shortCode: ${shortCode}`);
   var hasNextPage = comments.page_info.has_next_page;
   var endCursor = comments.page_info.end_cursor;
-
   for (var i = 0; i < comments.edges.length; i++) {
     var comment = comments.edges[i].node;
     var commentId = comment.id;
