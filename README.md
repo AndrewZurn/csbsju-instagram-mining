@@ -37,17 +37,20 @@ https://www.instagram.com/graphql/query/?query_hash=bc3296d1ce80a24b1b6e40b1e729
 ```
 
 ## Scraping Other Instagram Accounts
-Update the `INSTAGRAM_ACCOUNT_NAME_TO_MINE` constants in index.js. 
+Update the `INSTAGRAM_ACCOUNT_NAME_TO_MINE` constant in index.js to desired account name. 
 
 ### Updating Query Hashes
-It appears the query hashes stay constant between Instagram accounts. In case a hash needs to be updated navigate to the Instagram account on desktop (without being logged in) and open the developer console and click the Network tab.
-``` 
-INSTAGRAM_QUERY_TIMELINE_POST_HASH
-INSTAGRAM_QUERY_POST_HASH
-INSTAGRAM_QUERY_COMMENT_HASH
-INSTAGRAM_QUERY_CHILD_COMMENT_HASH
-```
-#### INSTAGRAM_ACCOUNT_NAME_TO_MINE
+It appears the query hashes stay constant between Instagram accounts. In case a hash needs to be updated, navigate to the Instagram account on your desktop in a web browser (without being logged in) and open the developer console and click the Network tab and then click the XHR filter button.
+
+#### INSTAGRAM_QUERY_POST_HASH
+![](assets/post_hash.gif)
 
 #### INSTAGRAM_QUERY_TIMELINE_POST_HASH
+![](assets/timeline_post_hash.gif)
 
+#### INSTAGRAM_QUERY_COMMENT_HASH
+![](assets/comment_hash.gif)
+
+#### INSTAGRAM_QUERY_CHILD_COMMENT_HASH
+Find a comment with more than 3 replies. 
+![](assets/children_comment_hash.gif)
