@@ -128,7 +128,7 @@ async function getPostsForAccount(id, initialAccountResponse) {
 
   while (hasNextPage) {
     try {
-      var pageVariable = JSON.stringify({ "id": `${id}`, "first": 25, "after": `${endCursor}` });
+      var pageVariable = JSON.stringify({ "id": `${id}`, "first": 100, "after": `${endCursor}` });
       urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_POST_HASH}&variables=${encodeURIComponent(pageVariable)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
@@ -194,7 +194,7 @@ async function getComments(comments, shortCode) {
   var { hasNextPage, endCursor } = await parseComments(comments, shortCode, null);
   while (hasNextPage) {
     try {
-      var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 100, "after": `${endCursor}` });
+      var commentVariables = JSON.stringify({ "shortcode": `${shortCode}`, "first": 1000, "after": `${endCursor}` });
       var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_COMMENT_HASH}&variables=${encodeURIComponent(commentVariables)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
@@ -208,12 +208,11 @@ async function getComments(comments, shortCode) {
 }
 
 async function getChildComments(comments, shortCode, parentCommentId) {
-  // https://www.instagram.com/graphql/query/?query_hash=1ee91c32fc020d44158a3192eda98247&variables=%7B%22comment_id%22%3A%2218034801927216250%22%2C%22first%22%3A6%2C%22after%22%3A%22QVFETWZCSmZCRHN4XzZkaHBuV2tiVmN2Z2ZSaEw4UEF6ZnFOT1VjN3ZFaEU3WlhCSmd6UGNrVFlpMlkwQjlQWk5IdVZNdGR4VjlkOUQ2VnJzaHpmNXJFYQ%3D%3D%22%7D
   console.log(`Getting child comments for parentCommentId: ${parentCommentId} and shortCode: ${shortCode}`);
   var { hasNextPage, endCursor } = await parseComments(comments, shortCode, parentCommentId);
   while (hasNextPage) {
     try {
-      var commentVariables = JSON.stringify({ "comment_id": `${parentCommentId}`, "first": 100, "after": `${endCursor}` });
+      var commentVariables = JSON.stringify({ "comment_id": `${parentCommentId}`, "first": 1000, "after": `${endCursor}` });
       var urlOverride = `https://www.instagram.com/graphql/query/?query_hash=${INSTAGRAM_QUERY_CHILD_COMMENT_HASH}&variables=${encodeURIComponent(commentVariables)}`;
       var options = _getRequestOptions(null, null, null, urlOverride);
       var response = await _makeRequest(options);
@@ -262,10 +261,13 @@ function parseComments(comments, shortCode, parentCommentId) {
 
 // Make request to url to get account information, 
 // then get the body/json from the response and massage it to a more readable state.
-// To see the full response, see: https://www.instagram.com/$accountName/?__a=1
+// To see the full response, open one of the URLs below in a browser.
+// * Initial timeline page for account: https://www.instagram.com/$accountName/?__a=1
+// * Additional posts for account: https://www.instagram.com/graphql/query/?query_hash=e769aa130647d2354c40ea6a439bfc08&variables=%7B%22id%22%3A%221415955173%22%2C%22first%22%3A25%2C%22after%22%3A%22QVFCYkRkMEZmTHVaeDN3bVo3WEt0aHk5b2dOeW5nRzF3M0NVZnZvZng2aVVKSmZiNnliamFiRW1ITWNKSkdvbjRfekpWcEJnVURCcnZFVDhaUXFfRm8tZw%3D%3D%22%7D
+// * Additional comments on a post: https://www.instagram.com/graphql/query/?query_hash=bc3296d1ce80a24b1b6e40b1e72903f5&variables=%7B%22shortcode%22%3A%22BoUpR6yhxJG%22%2C%22first%22%3A100%2C%22after%22%3A%22QVFDZlBZZ0FZY2Q2dEVVVE1MREM0QmpFQWxBQnVlNUljVEhWN1c1bFZDM2I0UnAtV2hTU0szR2dRVzM1bWpGZzRyYVFDbUlVcHh1TGhUR3VwcFFTMEFnbQ%3D%3D%22%7D
+// * Child comments of a parent comment: https://www.instagram.com/graphql/query/?query_hash=1ee91c32fc020d44158a3192eda98247&variables=%7B%22comment_id%22%3A%2217935811389217391%22%2C%22first%22%3A100%2C%22after%22%3A%22QVFCdjNXM09COG5SOFp1S2VpaGVReUt6bThVcjROVEUxUkJJY2toWUU3WnV5dXhVbWJQUzdtSkI0WU5uTHJKdTU2dmlLTkJvVkxlS1FnS3dFSXlCVDRaYw%3D%3D%22%7D
 async function _makeRequest(options) {
   console.log(`Getting information from url: ${options.url}`);
-
   try {
     var response = await request(options); // make a call to get the instagram info
     return response.body['graphql'] || response.body['data'];
