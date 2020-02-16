@@ -14,7 +14,9 @@ node index.js
 # How it Works:
 This project scraps the data from a single Instagram account and export the data into three csv files, `account`, `posts`, and `comments`. Post and Comment data can be joined via shortCode. Children comments can be joined to parent comment via parent_comment_id.
 
-[Inspired By](https://medium.com/@h4t0n/instagram-data-scraping-550c5f2fb6f1)
+[Inspired By this Medium post](https://medium.com/@h4t0n/instagram-data-scraping-550c5f2fb6f1)
+
+NOTE: Instagram rate limits (blocks additional successful calls being made) after a few hundred requests are made to their website. Because of this, it may take a while (hours/days) to fully scrape a particular account's data (especially if the account has a lot of posts or gets a lot of comments on their posts). To mitigate this, if you can find a way to change the IP address of the machine you are running this from (such as alternating between different VPN servers) you can make additional successful calls to Instagram's website (as they rate-limit based on IP address).
 
 ## To Further Explore the Data on Instagram
 Inspect the JSON object at the URL below (open in your browser or using a tool such as cURL). Is there anything else you would like to added to the `account.csv` file?

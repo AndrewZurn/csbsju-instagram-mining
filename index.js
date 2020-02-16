@@ -71,16 +71,23 @@ if (!fs.existsSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}`)){
   fs.mkdirSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}`);
 }
 
+// The following code handles writing data to csv files as it becomes available (as a stream of data items),
+// rather than storing all the data in memory and then writing it at the end of the mining process.
+// This ensure that we process doesn't crash due to the machine running out of memory, and ensures that accounts
+// with a large amount of posts (such as Nike) can be partially minded and is not an all-or-nothing mining process.
+// open a stream writer to write the acocunt data into the accounts csv file
 const accountsInput = new Readable({ objectMode: true });
 accountsInput._read = () => {};
 const accountsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/accounts.csv`, { encoding: 'utf8' });
 const accountsProcessor = accountsInput.pipe(new Transform(accountOpts, transformOpts)).pipe(accountsOutput);
 
+// open a stream writer to write the acocunt data into the posts csv file
 const postsInput = new Readable({ objectMode: true });
 postsInput._read = () => {};
 const postsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/posts.csv`, { encoding: 'utf8' });
 const postsProcessor = postsInput.pipe(new Transform(postsOpts, transformOpts)).pipe(postsOutput);
 
+// open a stream writer to write the acocunt data into the comments csv file
 const commentsInput = new Readable({ objectMode: true });
 commentsInput._read = () => {};
 const commentsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/comments.csv`, { encoding: 'utf8' });
@@ -179,7 +186,6 @@ async function parsePosts(response) {
       image_width: node.dimensions.width,
       caption: node.edge_media_to_caption.edges[0] ? node.edge_media_to_caption.edges[0].node.text.replace(/[\n\r,]/g, '') : '',
       comment_count: node.edge_media_to_comment.count,
-      // comments: await getComments(node.edge_media_to_comment, node.shortcode),
       title: node.title ? node.title.replace(/[\n\r,]/g, '') : '',
       likes: node.edge_media_preview_like.count
     });
@@ -188,8 +194,6 @@ async function parsePosts(response) {
   return { hasNextPage, endCursor };
 }
 
-
-// short code
 async function getComments(comments, shortCode) {
   var { hasNextPage, endCursor } = await parseComments(comments, shortCode, null);
   while (hasNextPage) {
