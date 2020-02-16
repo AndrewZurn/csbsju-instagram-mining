@@ -42,6 +42,7 @@ const postsOpts = {
     'is_video',
     'video_duration',
     'type',
+    'display_url',
     'image_height',
     'image_width',
     'caption',
@@ -65,8 +66,10 @@ const commentsOpts = {
   ] 
 };
 
-// make our ouput directory
-fs.mkdirSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}`);
+// make our ouput directory if it doesn't exist
+if (!fs.existsSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}`)){
+  fs.mkdirSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}`);
+}
 
 const accountsInput = new Readable({ objectMode: true });
 accountsInput._read = () => {};
@@ -161,7 +164,7 @@ async function parsePosts(response) {
 
   for (var i = 0; i < postMedia.edges.length; i++) {
     var node = postMedia.edges[i].node;
-    console.log(`Starting to parse shortCode: ${node.shortcode} i: ${i}`);
+    console.log(`Starting to parse shortCode: ${node.shortcode}`);
     await getComments(node.edge_media_to_comment, node.shortcode);
 
     postsInput.push({
@@ -171,6 +174,7 @@ async function parsePosts(response) {
       is_video: node.is_video,
       video_duration: node.video_duration,
       type: node.__typename,
+      display_url: node.display_url,
       image_height: node.dimensions.height,
       image_width: node.dimensions.width,
       caption: node.edge_media_to_caption.edges[0] ? node.edge_media_to_caption.edges[0].node.text.replace(/[\n\r,]/g, '') : '',
