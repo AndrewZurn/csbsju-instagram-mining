@@ -37,6 +37,7 @@ const accountOpts = {
 const postsOpts = { 
   fields: [
     'id',
+    'created_at',
     'shortcode',
     'video_view_count',
     'is_video',
@@ -66,9 +67,14 @@ const commentsOpts = {
   ] 
 };
 
-// make our ouput directory if it doesn't exist
+// make our ouput directories if it doesn't exist
 if (!fs.existsSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}`)){
   fs.mkdirSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}`);
+}
+
+const todaysDate = (new Date()).toLocaleDateString().replace(/\//g, "-")
+if (!fs.existsSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/${todaysDate}`)){
+  fs.mkdirSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/${todaysDate}`);
 }
 
 // The following code handles writing data to csv files as it becomes available (as a stream of data items),
@@ -78,19 +84,19 @@ if (!fs.existsSync(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}`)){
 // open a stream writer to write the acocunt data into the accounts csv file
 const accountsInput = new Readable({ objectMode: true });
 accountsInput._read = () => {};
-const accountsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/accounts.csv`, { encoding: 'utf8' });
+const accountsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/${todaysDate}/accounts.csv`, { encoding: 'utf8' });
 const accountsProcessor = accountsInput.pipe(new Transform(accountOpts, transformOpts)).pipe(accountsOutput);
 
 // open a stream writer to write the acocunt data into the posts csv file
 const postsInput = new Readable({ objectMode: true });
 postsInput._read = () => {};
-const postsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/posts.csv`, { encoding: 'utf8' });
+const postsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/${todaysDate}/posts.csv`, { encoding: 'utf8' });
 const postsProcessor = postsInput.pipe(new Transform(postsOpts, transformOpts)).pipe(postsOutput);
 
 // open a stream writer to write the acocunt data into the comments csv file
 const commentsInput = new Readable({ objectMode: true });
 commentsInput._read = () => {};
-const commentsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/comments.csv`, { encoding: 'utf8' });
+const commentsOutput = createWriteStream(`./${INSTAGRAM_ACCOUNT_NAME_TO_MINE}/${todaysDate}/comments.csv`, { encoding: 'utf8' });
 const commentsProcessor = commentsInput.pipe(new Transform(commentsOpts, transformOpts)).pipe(commentsOutput);
 
 async function main() {
@@ -176,6 +182,7 @@ async function parsePosts(response) {
 
     postsInput.push({
       id: node.id,
+      created_at: node.taken_at_timestamp,
       shortcode: node.shortcode,
       video_view_count: node.video_view_count,
       is_video: node.is_video,
