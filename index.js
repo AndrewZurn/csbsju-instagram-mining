@@ -5,7 +5,7 @@ const { Transform } = require("json2csv");
 const { Readable } = require('stream');
 var sleep = require('sleep');
 
-const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'nike';
+const INSTAGRAM_ACCOUNT_NAME_TO_MINE = 'nikewomen';
 const INSTAGRAM_QUERY_TIMELINE_POST_HASH = '06f8942777d97c874d3d88066e5e3824'; // this may change periodically
 const INSTAGRAM_QUERY_POST_HASH = 'e769aa130647d2354c40ea6a439bfc08'; // this may change periodically
 const INSTAGRAM_QUERY_COMMENT_HASH = 'bc3296d1ce80a24b1b6e40b1e72903f5'; // this may change periodically
