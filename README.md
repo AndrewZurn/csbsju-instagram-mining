@@ -12,7 +12,7 @@ npm install
 node index.js
 ```
 # How it Works:
-This project scraps the data from a single Instagram account and export the data into three csv files, `account`, `posts`, and `comments`. Post and Comment data can be joined via shortCode. Children comments can be joined to parent comment via parent_comment_id.
+This project scraps the data from a single Instagram account and export the data into three csv files, located in the `data/` directory under a directory named with the date on which is was pulled. The files are `account`, `posts`, and `comments`. Post and Comment data can be joined via shortCode. Children comments can be joined to parent comment via parent_comment_id.
 
 [Inspired By this Medium post](https://medium.com/@h4t0n/instagram-data-scraping-550c5f2fb6f1)
 
